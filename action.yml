@@ -9,7 +9,8 @@ branding:
 inputs:
   github_token:
     description: 'Github Token'
-    required: true
+    default: ${{ github.token }}
+    required: false
   checkout_branch:
     description: 'Branch to checkout'
     required: false
@@ -19,7 +20,8 @@ inputs:
     required: true
   parent_repository:
     description: 'Parent Repository'
-    required: true
+    default: ${{ github.repository }}
+    required: false
   owner:
     description: 'Owner'
     required: true
