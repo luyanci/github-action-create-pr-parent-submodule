@@ -52,34 +52,38 @@ runs:
       git commit -am "updating submodules"
       git push --set-upstream origin $GITHUB_RUN_ID
 
-  - name: Create pull request against target branch
+  - id: create_pr
+    name: Create pull request against target branch
     uses: actions/github-script@v9
     with:
       github-token: ${{ inputs.github_token }}
       script: |
-        await github.rest.pulls.create({
-          owner: '${{ inputs.owner }}',
-          repo: '${{ inputs.parent_repository }}'.split('/')[1].trim(),
+        const owner = ('${{ inputs.owner }}' || '${{ inputs.parent_repository }}'.split('/')[0].trim()).trim();
+        const repo = '${{ inputs.parent_repository }}'.split('/')[1].trim();
+        const { data: pr } = await github.rest.pulls.create({
+          owner: owner,
+          repo: repo,
           head: process.env.GITHUB_RUN_ID,
           base: '${{ inputs.pr_against_branch }}',
           title: `[Auto-generated] Submodule Updates ${process.env.GITHUB_RUN_ID}`,
           body: `[Auto-generated] Submodule Updates ${process.env.GITHUB_RUN_ID}`,
         });
+        return pr.number;
 
   - name: Add labels
     uses: actions/github-script@v9
     with:
       github-token: ${{ inputs.github_token }}
       script: |
-        const res = await github.rest.issues.listForRepo({
-          owner: '${{ inputs.owner }}',
-          repo: '${{ inputs.parent_repository }}'.split('/')[1].trim(),
-        });
-        const pr = res.data.filter(i => i.title.includes(process.env.GITHUB_RUN_ID));
-        const prNumber = pr[0].number;  
+        const owner = ('${{ inputs.owner }}' || '${{ inputs.parent_repository }}'.split('/')[0].trim()).trim();
+        const repo = '${{ inputs.parent_repository }}'.split('/')[1].trim();
+        const prNumber = parseInt('${{ steps.create_pr.outputs.result }}', 10);
+        if (isNaN(prNumber)) {
+          throw new Error('Could not determine PR number to add labels to.');
+        }
         await github.rest.issues.addLabels({
           issue_number: prNumber,
-          owner: '${{ inputs.owner }}',
-          repo: '${{ inputs.parent_repository }}'.split('/')[1].trim(),
+          owner: owner,
+          repo: repo,
           labels: ['${{ inputs.label }}']
         });
