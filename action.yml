@@ -14,7 +14,6 @@ inputs:
   checkout_branch:
     description: 'Branch to checkout'
     required: false
-    default: 'main'
   pr_against_branch:
     description: 'Parent branch'
     required: true
@@ -24,7 +23,8 @@ inputs:
     required: false
   owner:
     description: 'Owner'
-    required: true
+    required: false
+    default: ${{ github.repository_owner }}
   label:
     description: 'Create Release Environment label'
     required: false
