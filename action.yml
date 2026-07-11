@@ -33,7 +33,8 @@ inputs:
 runs:
   using: 'composite'
   steps:
-  - name: Checkout parent repository and branch
+  - id: prepare
+    name: Prepare repository and check for submodule changes
     uses: actions/checkout@v7
     with:
       token: ${{ inputs.github_token }}
@@ -42,18 +43,34 @@ runs:
       submodules: true
       fetch-depth: 0
 
-  - name: Create new branch and push changes
+  - id: update_submodules
+    name: Update submodules and create branch if changes
     shell: bash
     run: |
+      set -euo pipefail
       git config user.name github-actions[bot]
       git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-      git submodule update --remote
-      git checkout -b $GITHUB_RUN_ID
-      git commit -am "updating submodules"
-      git push --set-upstream origin $GITHUB_RUN_ID
+      # Update submodules to latest remote
+      git submodule update --remote || true
+      # Stage any changes (including gitlinks for submodules)
+      git add -A
+
+      # If there are no staged changes, set output and exit successfully
+      if git diff --cached --quiet --exit-code; then
+        echo "changes=false" >> $GITHUB_OUTPUT
+        echo "No submodule changes detected. Exiting action successfully."
+        exit 0
+      fi
+
+      # Otherwise create branch, commit and push
+      git checkout -b "$GITHUB_RUN_ID"
+      git commit -m "updating submodules"
+      git push --set-upstream origin "$GITHUB_RUN_ID"
+      echo "changes=true" >> $GITHUB_OUTPUT
 
   - id: create_pr
     name: Create pull request against target branch
+    if: steps.update_submodules.outputs.changes == 'true'
     uses: actions/github-script@v9
     with:
       github-token: ${{ inputs.github_token }}
@@ -71,6 +88,7 @@ runs:
         return pr.number;
 
   - name: Add labels
+    if: steps.update_submodules.outputs.changes == 'true'
     uses: actions/github-script@v9
     with:
       github-token: ${{ inputs.github_token }}
